@@ -1,17 +1,355 @@
 """
 Snakemake workflow for de novo genome assembly
-Assignment 4 - BIOL-6101
-
-Build your workflow here by adding rules for:
-1. Quality control of raw reads
-2. Read preprocessing/filtering (if needed)
-3. Genome assembly
-4. Assembly quality assessment (QUAST, BUSCO)
-5. Visualization and reporting
-
-Refer to the README.md for detailed instructions and examples.
 """
 
-# ============================================================================
-# Your rules go here
-# ============================================================================
+configfile: "config/config.yaml"
+
+# =============================================================================
+# Global variables derived from config
+# =============================================================================
+SAMPLE  = config["sample_name"]
+R1      = config["reads_r1"]
+R2      = config["reads_r2"]
+
+# Output directory layout
+QC_DIR       = "results/qc"
+READS_DIR    = "results/processed_reads"
+ASSEMBLY_DIR = "results/assembly"
+PLOTS_DIR    = "results/plots"
+LOG_DIR      = "logs"
+
+# =============================================================================
+# rule all – declares the final targets Snakemake must produce
+# =============================================================================
+rule all:
+    input:
+        f"{QC_DIR}/raw/multiqc_report.html",
+        f"{QC_DIR}/trimmed/multiqc_report.html",
+        f"{ASSEMBLY_DIR}/contigs.fasta",
+        f"{QC_DIR}/assembly/quast/report.html",
+        f"{QC_DIR}/assembly/busco/{SAMPLE}/short_summary.specific.{config['busco_lineage']}.{SAMPLE}.txt",
+        f"{QC_DIR}/assembly/coverage_stats.txt",
+        f"{PLOTS_DIR}/contig_length_distribution.pdf",
+
+
+# =============================================================================
+# Task 1 – Raw read quality control
+# =============================================================================
+
+rule raw_fastqc:
+    """
+    FastQC on raw reads.
+
+    """
+    input:
+        r1 = R1,
+        r2 = R2,
+    output:
+        html1 = f"{QC_DIR}/raw/{SAMPLE}_R1_fastqc.html",
+        zip1  = f"{QC_DIR}/raw/{SAMPLE}_R1_fastqc.zip",
+        html2 = f"{QC_DIR}/raw/{SAMPLE}_R2_fastqc.html",
+        zip2  = f"{QC_DIR}/raw/{SAMPLE}_R2_fastqc.zip",
+    params:
+        outdir = f"{QC_DIR}/raw",
+    threads: config["threads"]["fastqc"]
+    log:
+        f"{LOG_DIR}/raw_fastqc_{SAMPLE}.log",
+    conda:
+        "envs/fastqc.yaml"
+    shell:
+        """
+        fastqc {input.r1} {input.r2} \
+            --outdir {params.outdir} \
+            --threads {threads} \
+            &> {log}
+        """
+
+
+rule multiqc_raw:
+    input:
+        f"{QC_DIR}/raw/{SAMPLE}_R1_fastqc.zip",
+        f"{QC_DIR}/raw/{SAMPLE}_R2_fastqc.zip",
+    output:
+        f"{QC_DIR}/raw/multiqc_report.html",
+    params:
+        indir  = f"{QC_DIR}/raw",
+        outdir = f"{QC_DIR}/raw",
+    log:
+        f"{LOG_DIR}/multiqc_raw.log",
+    conda:
+        "envs/fastqc.yaml"
+    shell:
+        """
+        multiqc {params.indir} \
+            --outdir {params.outdir} \
+            --force \
+            &> {log}
+        """
+
+
+# =============================================================================
+# Task 2 – Read preprocessing with fastp
+# =============================================================================
+
+rule trim:
+    input:
+        r1 = R1,
+        r2 = R2,
+    output:
+        r1   = f"{READS_DIR}/{SAMPLE}_R1_trimmed.fastq.gz",
+        r2   = f"{READS_DIR}/{SAMPLE}_R2_trimmed.fastq.gz",
+        html = f"{QC_DIR}/trimmed/{SAMPLE}_fastp.html",
+        json = f"{QC_DIR}/trimmed/{SAMPLE}_fastp.json",
+    params:
+        min_len    = config["fastp"]["min_length"],
+        qual       = config["fastp"]["qualified_quality_phred"],
+        unqual_pct = config["fastp"]["unqualified_percent_limit"],
+        reads_dir  = READS_DIR,
+        qc_dir     = f"{QC_DIR}/trimmed",
+    threads: config["threads"]["fastp"]
+    log:
+        f"{LOG_DIR}/fastp_{SAMPLE}.log",
+    conda:
+        "envs/fastp.yaml"
+    shell:
+        """
+        mkdir -p {params.reads_dir} {params.qc_dir}
+        fastp \
+            --in1 {input.r1}  --in2 {input.r2} \
+            --out1 {output.r1} --out2 {output.r2} \
+            --html {output.html} --json {output.json} \
+            --length_required {params.min_len} \
+            --qualified_quality_phred {params.qual} \
+            --unqualified_percent_limit {params.unqual_pct} \
+            --thread {threads} \
+            &> {log}
+        """
+
+
+rule trimmed_fastqc:
+    input:
+        r1 = f"{READS_DIR}/{SAMPLE}_R1_trimmed.fastq.gz",
+        r2 = f"{READS_DIR}/{SAMPLE}_R2_trimmed.fastq.gz",
+    output:
+        html1 = f"{QC_DIR}/trimmed/{SAMPLE}_R1_trimmed_fastqc.html",
+        zip1  = f"{QC_DIR}/trimmed/{SAMPLE}_R1_trimmed_fastqc.zip",
+        html2 = f"{QC_DIR}/trimmed/{SAMPLE}_R2_trimmed_fastqc.html",
+        zip2  = f"{QC_DIR}/trimmed/{SAMPLE}_R2_trimmed_fastqc.zip",
+    params:
+        outdir = f"{QC_DIR}/trimmed",
+    threads: config["threads"]["fastqc"]
+    log:
+        f"{LOG_DIR}/trimmed_fastqc_{SAMPLE}.log",
+    conda:
+        "envs/fastqc.yaml"
+    shell:
+        """
+        fastqc {input.r1} {input.r2} \
+            --outdir {params.outdir} \
+            --threads {threads} \
+            &> {log}
+        """
+
+
+rule multiqc_trimmed:
+    input:
+        f"{QC_DIR}/trimmed/{SAMPLE}_R1_trimmed_fastqc.zip",
+        f"{QC_DIR}/trimmed/{SAMPLE}_R2_trimmed_fastqc.zip",
+        f"{QC_DIR}/trimmed/{SAMPLE}_fastp.json",
+    output:
+        f"{QC_DIR}/trimmed/multiqc_report.html",
+    params:
+        indir  = f"{QC_DIR}/trimmed",
+        outdir = f"{QC_DIR}/trimmed",
+    log:
+        f"{LOG_DIR}/multiqc_trimmed.log",
+    conda:
+        "envs/fastqc.yaml"
+    shell:
+        """
+        multiqc {params.indir} \
+            --outdir {params.outdir} \
+            --force \
+            &> {log}
+        """
+
+
+# =============================================================================
+# Task 3 – Genome assembly with SPAdes
+# =============================================================================
+
+rule assemble:
+    input:
+        r1 = f"{READS_DIR}/{SAMPLE}_R1_trimmed.fastq.gz",
+        r2 = f"{READS_DIR}/{SAMPLE}_R2_trimmed.fastq.gz",
+    output:
+        contigs = f"{ASSEMBLY_DIR}/contigs.fasta",
+        graph   = f"{ASSEMBLY_DIR}/assembly_graph.gfa",
+    params:
+        outdir  = ASSEMBLY_DIR,
+        careful = "--careful" if config["spades"]["careful"] else "",
+        mem     = config["memory"]["spades_gb"],
+    threads: config["threads"]["spades"]
+    log:
+        f"{LOG_DIR}/spades_{SAMPLE}.log",
+    conda:
+        "envs/spades.yaml"
+    shell:
+        """
+        mkdir -p {params.outdir}
+        spades.py \
+            -1 {input.r1} -2 {input.r2} \
+            -o {params.outdir} \
+            {params.careful} \
+            --threads {threads} \
+            --memory {params.mem} \
+            &> {log}
+
+        if [ ! -f {output.graph} ]; then
+            gfa={params.outdir}/assembly_graph_with_scaffolds.gfa
+            if [ -f "$gfa" ]; then
+                cp "$gfa" {output.graph}
+            else
+                touch {output.graph}
+            fi
+        fi
+        """
+
+
+
+# =============================================================================
+# Task 4a – Assembly statistics with QUAST
+# =============================================================================
+
+rule quast:
+    input:
+        contigs = f"{ASSEMBLY_DIR}/contigs.fasta",
+    output:
+        report = f"{QC_DIR}/assembly/quast/report.html",
+    params:
+        outdir      = f"{QC_DIR}/assembly/quast",
+        genome_size = config["expected_genome_size"],
+    threads: config["threads"]["quast"]
+    log:
+        f"{LOG_DIR}/quast_{SAMPLE}.log",
+    conda:
+        "envs/quast.yaml"
+    shell:
+        """
+        quast.py {input.contigs} \
+            --output-dir {params.outdir} \
+            --est-ref-size {params.genome_size} \
+            --no-plots \
+            --threads {threads} \
+            &> {log}
+        """
+
+
+
+# =============================================================================
+# Task 4b – Completeness assessment with BUSCO
+# =============================================================================
+
+rule busco:
+    input:
+        contigs = f"{ASSEMBLY_DIR}/contigs.fasta",
+    output:
+        summary = f"{QC_DIR}/assembly/busco/{SAMPLE}/short_summary.specific.{config['busco_lineage']}.{SAMPLE}.txt",
+    params:
+        outdir  = f"{QC_DIR}/assembly/busco",
+        lineage = config["busco_lineage"],
+        sample  = SAMPLE,
+    threads: config["threads"]["busco"]
+    log:
+        f"{LOG_DIR}/busco_{SAMPLE}.log",
+    conda:
+        "envs/busco.yaml"
+    shell:
+        """
+        WORKDIR=$(pwd)
+        mkdir -p {params.outdir}
+        cd {params.outdir}
+        busco \
+            --in $WORKDIR/{input.contigs} \
+            --out {params.sample} \
+            --lineage_dataset {params.lineage} \
+            --mode genome \
+            --cpu {threads} \
+            --force \
+            &> $WORKDIR/{log}
+        cd $WORKDIR
+        """
+
+
+
+# =============================================================================
+# Task 4c – Coverage analysis: map reads back to the assembly
+# =============================================================================
+
+rule map_reads:
+    input:
+        contigs = f"{ASSEMBLY_DIR}/contigs.fasta",
+        r1      = f"{READS_DIR}/{SAMPLE}_R1_trimmed.fastq.gz",
+        r2      = f"{READS_DIR}/{SAMPLE}_R2_trimmed.fastq.gz",
+    output:
+        bam = f"{QC_DIR}/assembly/reads_mapped.bam",
+        bai = f"{QC_DIR}/assembly/reads_mapped.bam.bai",
+    params:
+        qc_dir = f"{QC_DIR}/assembly",
+    threads: config["threads"]["minimap2"]
+    log:
+        f"{LOG_DIR}/minimap2_{SAMPLE}.log",
+    conda:
+        "envs/minimap2.yaml"
+    shell:
+        """
+        mkdir -p {params.qc_dir}
+        minimap2 -ax sr -t {threads} {input.contigs} {input.r1} {input.r2} \
+            2>> {log} \
+            | samtools sort -@ {threads} -o {output.bam} \
+            2>> {log}
+        samtools index {output.bam} 2>> {log}
+        """
+
+
+
+rule coverage_stats:
+    input:
+        bam = f"{QC_DIR}/assembly/reads_mapped.bam",
+        bai = f"{QC_DIR}/assembly/reads_mapped.bam.bai",
+    output:
+        stats = f"{QC_DIR}/assembly/coverage_stats.txt",
+    log:
+        f"{LOG_DIR}/coverage_stats_{SAMPLE}.log",
+    conda:
+        "envs/minimap2.yaml"
+    shell:
+        """
+        samtools coverage {input.bam} > {output.stats} 2> {log}
+        """
+
+
+# =============================================================================
+# Task 7 – Contig length distribution plot
+# =============================================================================
+
+rule plot_contigs:
+    input:
+        contigs = f"{ASSEMBLY_DIR}/contigs.fasta",
+    output:
+        plot = f"{PLOTS_DIR}/contig_length_distribution.pdf",
+    params:
+        outdir = PLOTS_DIR,
+    log:
+        f"{LOG_DIR}/plot_contigs_{SAMPLE}.log",
+    conda:
+        "envs/plot.yaml"
+    shell:
+        """
+        mkdir -p {params.outdir}
+        python workflow/scripts/plot_contig_lengths.py \
+            --fasta {input.contigs} \
+            --output {output.plot} \
+            &> {log}
+        """
+

@@ -1,0 +1,46 @@
+
+# Sample 
+sample_name: "ecoli_k12"
+
+# Organism metadata
+organism: "Escherichia coli K-12 MG1655"
+expected_genome_size: "4600000"   # Used by QUAST as reference size estimate (in bp)
+
+# -----------------------------------------------------------------------------
+# Input data paths
+# -----------------------------------------------------------------------------
+reads_r1: "data/raw_reads/ecoli_k12_R1.fastq.gz"
+reads_r2: "data/raw_reads/ecoli_k12_R2.fastq.gz"
+
+# -----------------------------------------------------------------------------
+# BUSCO settings
+# -----------------------------------------------------------------------------
+busco_lineage: "bacteria_odb10"
+
+# -----------------------------------------------------------------------------
+# Tool parameters
+# -----------------------------------------------------------------------------
+
+# fastp: short-read trimming and adapter removal
+fastp:
+  min_length: 50             # Discard reads shorter than 50 bp after trimming
+  qualified_quality_phred: 20  # Minimum base quality score to keep
+  unqualified_percent_limit: 40  # Max % of bases below quality threshold
+
+# SPAdes: de novo assembler for Illumina data
+spades:
+  careful: true   # Reduces mismatches/indels via MismatchCorrector (good for small genomes)
+
+# -----------------------------------------------------------------------------
+# Computational resources
+# -----------------------------------------------------------------------------
+threads:
+  fastqc:   2
+  fastp:    4
+  spades:   8
+  quast:    4
+  busco:    4
+  minimap2: 4
+
+memory:
+  spades_gb: 16   # Max RAM for SPAdes in GB
