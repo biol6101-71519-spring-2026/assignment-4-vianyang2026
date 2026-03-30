@@ -1,21 +1,16 @@
-# Assignment 4 Report: De Novo Genome Assembly of *Escherichia coli* K-12
+# Assignment 4 Report: De Novo Genome Assembly of Escherichia coli (K-12)
 
-**Student:** vianyang2026
-**Course:** BIOL-6101
-**Date:** March 2026
-
----
 
 ## Introduction
 
-*Escherichia coli* K-12 MG1655 is a well-characterised, non-pathogenic laboratory strain with an expected genome size of approximately 4.6 Mb and a GC content of ~50.8% (Blattner et al., 1997). Public short-read Illumina data (SRA accession SRR2584863, paired-end 2×150 bp, HiSeq 2500) were selected for this assembly because the genome is small enough to assemble rapidly, a high-quality reference sequence exists for benchmarking (GenBank NC_000913.3), and the dataset provides deep, even coverage (~220×). SPAdes was chosen as the assembler because it is widely used for bacterial genomes, supports paired-end data natively, and its `--careful` mode reduces substitution errors through a post-processing MismatchCorrector step (Bankevich et al., 2012). QUAST and BUSCO were used to assess assembly quality because they measure complementary properties: QUAST captures contiguity metrics (N50, total length), while BUSCO measures gene-space completeness using conserved single-copy orthologs.
+Escherichia coli K-12 MG1655 is a well-characterised, non-pathogenic laboratory strain with a compact genome of approximately 4.6 Mb and a GC content of ~50.8% (Blattner et al., 1997). Its small size, the availability of a high-quality reference sequence (GenBank NC_000913.3), and a publicly available Illumina dataset with deep, even coverage (~220×, SRA: SRR2584863, paired-end 2×150 bp, HiSeq 2500) make it an ideal benchmark for evaluating assembly workflows. Assembly was performed with SPAdes, using its --careful mode to minimise substitution errors via a post-processing MismatchCorrector step (Bankevich et al., 2012). Assembly quality was then evaluated using QUAST and BUSCO, which together capture complementary aspects of assembly performance — contiguity and gene-space completeness, respectively.
 
----
+
 
 ## Methods
 
 ### Data acquisition and QC
-Reads were downloaded from the NCBI SRA (accession SRR2584863) using `fasterq-dump`. Raw read quality was assessed with FastQC v0.12.1 and summarised with MultiQC v1.14. Reads were then trimmed with fastp v0.23.4 using the following filters: minimum read length 50 bp, minimum base quality phred ≥ 20, and a maximum of 40% low-quality bases per read. Adapter sequences were detected and removed automatically. Post-trimming quality was re-assessed with FastQC and MultiQC to confirm improvement.
+Reads were downloaded from the NCBI SRA (accession SRR2584863) using `fasterq-dump`. Raw read quality was then assessed with FastQC v0.12.1 and summarised with MultiQC v1.14. Next reads were then trimmed with fastp v0.23.4 using the following filters: minimum read length 50 bp, minimum base quality phred ≥ 20, and a maximum of 40% low-quality bases per read. Adapter sequences were detected and removed automatically. Post-trimming quality was re-assessed with FastQC and MultiQC to to confirm that reads met quality thresholds before assembly..
 
 ### Genome assembly
 Trimmed paired-end reads were assembled with SPAdes v3.15.5 using `--careful` mode and 8 threads, with a memory cap of 16 GB. SPAdes performs iterative assembly across multiple k-mer lengths selected automatically based on read length. The `--careful` flag enables MismatchCorrector, which maps reads back to the initial assembly and corrects single-nucleotide discrepancies, producing a more accurate final sequence. No additional polishing was applied, as the Illumina data are sufficiently accurate.
@@ -23,16 +18,16 @@ Trimmed paired-end reads were assembled with SPAdes v3.15.5 using `--careful` mo
 ### Assembly quality assessment
 Assembly statistics (contig count, total length, N50/N75/N90, largest contig, GC content) were computed with QUAST v5.2.0 using an estimated reference size of 4.6 Mb. Gene-space completeness was assessed with BUSCO v5.4.7 against the `bacteria_odb10` lineage dataset (genome mode). As an additional quality metric, trimmed reads were mapped back to the assembly using minimap2 v2.26 (short-read preset `-ax sr`), sorted and indexed with samtools v1.17, and per-contig coverage statistics were extracted with `samtools coverage`. A contig length distribution plot was generated with a custom Python script using matplotlib v3.7.1 and BioPython v1.81.
 
----
+
 
 ## Results
 
 ### Raw read quality
-Raw sequencing yielded 3,106,518 reads (1,553,259 pairs) at 150 bp, giving ~101× theoretical coverage of the 4.6 Mb genome. Pre-trimming, R1 and R2 showed Q20 rates of 89.2% and Q30 rates of 81.6%, with slight quality degradation toward read ends, as expected for HiSeq 2500 data. No significant adapter contamination was detected by FastQC. After fastp trimming (min length 50 bp, phred ≥ 20, ≤ 40% low-quality bases), 2,538,296 reads (81.7% of input) were retained, with a mean length of 144 bp, Q20 rate 96.4%, and Q30 rate 89.4%. 526,316 reads were removed for low quality, 40,782 for being too short, and 1,124 for excess N bases. The trimmed MultiQC report confirmed clean, adapter-free reads with uniform quality across positions.
+Raw sequencing yielded 3,106,518 reads (1,553,259 pairs) at 150 bp, giving  approximately 101× theoretical coverage of the 4.6 Mb genome. Pre-trimming, R1 and R2 showed Q20 rates of 89.2% and Q30 rates of 81.6%, with slight quality degradation toward read ends, as expected for HiSeq 2500 data. No significant adapter contamination was detected by FastQC. After fastp trimming (min length 50 bp, phred ≥ 20, ≤ 40% low-quality bases), 2,538,296 reads (81.7% of input) were retained, with a mean length of 144 bp, Q20 rate 96.4%, and Q30 rate 89.4%. 526,316 reads were removed for low quality, 40,782 for being too short, and 1,124 for excess N bases. The trimmed MultiQC report confirmed clean, adapter-free reads with uniform quality across positions.
 
 ### Assembly statistics
 
-The SPAdes assembly produced 69 contigs ≥ 500 bp with a total length of 4.55 Mb, within 1% of the expected 4.6 Mb. The N50 was 151,564 bp, meaning half the assembly is contained in contigs of at least ~152 kb. The largest contig was 348 kb. GC content was 50.72%, consistent with the *E. coli* K-12 reference (50.8%). The 139 contigs smaller than 500 bp account for only 24,164 bp combined and likely represent repetitive or low-complexity regions that SPAdes could not fully resolve.
+The SPAdes assembly produced 69 contigs ≥ 500 bp with a total length of 4.55 Mb, within 1% of the expected 4.6 Mb. The N50 was 151,564 bp, meaning half the assembly is contained in contigs of at least 152 kb. The largest contig was 348 kb. GC content was 50.72%, consistent with the E. coli K-12 reference (50.8%). The 139 contigs smaller than 500 bp account for only 24,164 bp combined and likely represent repetitive or low-complexity regions that SPAdes could not fully resolve.
 
 ### BUSCO completeness
 
@@ -45,7 +40,6 @@ Read mapping with minimap2 showed a mean depth of 78× across the major contigs 
 ### Contig length distribution
 The contig length distribution plot shows that most assembly length is concentrated in a small number of large contigs (consistent with a nearly complete bacterial genome), while a tail of short contigs (<1 kb) represents repetitive or low-complexity regions that SPAdes could not resolve fully.
 
----
 
 ## Discussion
 
@@ -53,7 +47,6 @@ The *E. coli* K-12 assembly is of high quality by all measured metrics. The tota
 
 The primary limitation of this assembly is fragmentation due to repetitive sequences. Short 150 bp reads cannot span repeat elements longer than ~300 bp (e.g., rRNA operons, insertion sequences), which is why the genome is split across 69 contigs rather than assembled into a single circular chromosome. The *E. coli* K-12 genome contains 7 rRNA operons, each ~5.5 kb, which are likely responsible for most of the remaining breaks. A hybrid approach combining these Illumina reads with long-read data (e.g., PacBio HiFi or Oxford Nanopore) would bridge these repeats and likely yield a complete, closed assembly. Alternatively, scaffolding the contigs against the reference (NC_000913.3) using tools such as RaGOO or ABACAS could produce a chromosome-scale pseudomolecule without additional sequencing.
 
----
 
 ## References
 
