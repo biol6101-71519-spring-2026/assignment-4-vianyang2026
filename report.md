@@ -3,7 +3,7 @@
 
 ## Introduction
 
-Escherichia coli K-12 MG1655 is a well-characterised, non-pathogenic laboratory strain with a compact genome of approximately 4.6 Mb and a GC content of ~50.8% (Blattner et al., 1997). Its small size, the availability of a high-quality reference sequence (GenBank NC_000913.3), and a publicly available Illumina dataset with deep, even coverage (~220×, SRA: SRR2584863, paired-end 2×150 bp, HiSeq 2500) make it an ideal benchmark for evaluating assembly workflows. Assembly was performed with SPAdes, using its --careful mode to minimise substitution errors via a post-processing MismatchCorrector step (Bankevich et al., 2012). Assembly quality was then evaluated using QUAST and BUSCO, which together capture complementary aspects of assembly performance — contiguity and gene-space completeness, respectively.
+Escherichia coli K-12 MG1655 is a well-characterised, non-pathogenic laboratory strain with a compact genome of approximately 4.6 Mb and a GC content of ~50.8% (Blattner et al., 1997). Its small size, the availability of a high-quality reference sequence (GenBank NC_000913.3), and a publicly available Illumina dataset with deep, even coverage (~220×, SRA: SRR2584863, paired-end 2×150 bp, HiSeq 2500) make it an ideal benchmark for evaluating assembly workflows. Assembly was performed with SPAdes, using its --careful mode to minimise substitution errors via a post-processing MismatchCorrector step (Bankevich et al., 2012). Assembly quality was then evaluated using QUAST and BUSCO, which together capture complementary aspects of assembly performance, contiguity and gene-space completeness, respectively.
 
 
 
